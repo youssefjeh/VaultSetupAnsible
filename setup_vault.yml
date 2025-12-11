@@ -28,3 +28,10 @@
   become: yes
   roles:
     - vault_master_config
+
+- name: Configure Vault Followers 
+  hosts: vault_followers
+  become: yes
+  roles:
+    - vault_install  
+    - vault_follower_config

@@ -1,4 +1,5 @@
 ---
+# 1. Load unseal token created by Auto_Unseal_Provider
 - name: Load unseal token from controller
   delegate_to: localhost
   slurp:
@@ -8,7 +9,8 @@
 - set_fact:
     unseal_token: "{{ unseal_token_raw.content | b64decode }}"
 
-- name: Create vault.hcl for Vault_Master
+# 2. Configure vault.hcl for follower
+- name: Configure vault.hcl for follower
   copy:
     dest: /etc/vault.d/vault.hcl
     owner: vault
@@ -38,33 +40,23 @@
         mount_path = "transit/"
       }
 
-- name: Enable and start Vault
+
+# 3. Enable/start vault
+- name: Enable and start Vault service
   systemd:
     name: vault
     enabled: yes
     state: started
 
-- name: Initialize Vault
-  ansible.builtin.command: vault operator init -format=json
+
+# 4. Join follower to RAFT cluster
+- name: Join follower to the RAFT cluster
+  ansible.builtin.command: >
+    vault operator raft join http://{{ hostvars['Vault_Master'].ansible_host }}:8200
   environment:
     VAULT_ADDR: "http://127.0.0.1:8200"
-  register: vault_master_init
-  changed_when: true
+  register: raft_join_output
+  failed_when: false
 
-- name: Save master init output
-  delegate_to: localhost
-  copy:
-    dest: "./vault_master_init.json"
-    content: "{{ vault_master_init.stdout }}"
-    mode: '0600'
-
-- name: Unseal Vault
-  ansible.builtin.command: "vault operator unseal {{ item }}"
-  loop: "{{ (vault_master_init.stdout | from_json).unseal_keys_b64 }}"
-  environment:
-    VAULT_ADDR: "http://127.0.0.1:8200"
-
-- name: Login using root token
-  ansible.builtin.command: "vault login {{ (vault_master_init.stdout | from_json).root_token }}"
-  environment:
-    VAULT_ADDR: "http://127.0.0.1:8200"
+- debug:
+    msg: "{{ raft_join_output.stdout }}"
