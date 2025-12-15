@@ -1,0 +1,29 @@
+ui = true
+disable_mlock = true
+
+api_addr     = "http://{{ ansible_host }}:8200"
+cluster_addr = "http://{{ ansible_host }}:8201"
+
+listener "tcp" {
+  address     = "0.0.0.0:8200"
+  tls_disable = 1
+}
+
+{% if vault_is_master or vault_is_follower %}
+storage "raft" {
+  path    = "/opt/vault/data"
+  node_id = "{{ inventory_hostname }}"
+}
+{% else %}
+storage "file" {
+  path = "/opt/vault/data"
+}
+{% endif %}
+{% if vault_is_master or vault_is_follower %}
+seal "transit" {
+  address    = "http://{{ auto_unseal_addr }}:8200"
+  token      = "{{ auto_unseal_token }}"
+  key_name   = "autounseal-key"
+  mount_path = "transit/"
+}
+{% endif %}

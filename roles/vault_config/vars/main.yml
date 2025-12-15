@@ -1,0 +1,7 @@
+auto_unseal_addr: "{{ hostvars['Auto_Unseal_Provider'].ansible_host }}"
+vault_is_master: "{{ inventory_hostname in groups['Vault_Master'] }}"
+vault_is_follower: "{{ inventory_hostname in groups['vault_followers'] }}"
+vault_is_auto_unseal_provider: "{{ inventory_hostname in groups['Auto_Unseal_Provider'] }}"
+vault_user: vault
+vault_group: vault
+VAULT_ADDR: "http://127.0.0.1:8200"

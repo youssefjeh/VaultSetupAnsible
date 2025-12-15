@@ -1,26 +1,24 @@
 ---
-- name: Enable transit secrets engine
-  ansible.builtin.command: vault secrets enable transit
-  environment:
-    VAULT_ADDR: "http://127.0.0.1:8200"
-  register: transit_enable
+- name: Enable transit engine
+  command: vault secrets enable transit
   failed_when: false
-  changed_when: "'enabled' in transit_enable.stdout"
-
-- name: Create transit key for auto-unseal
-  ansible.builtin.command: vault write -f transit/keys/autounseal-key
   environment:
-    VAULT_ADDR: "http://127.0.0.1:8200"
+    VAULT_ADDR: "{{ VAULT_ADDR }}"
+
+- name: Create auto-unseal key
+  command: vault write -f transit/keys/autounseal-key
+  environment:
+    VAULT_ADDR: "{{ VAULT_ADDR }}"
 
 - name: Create auto-unseal token
-  ansible.builtin.command: vault token create -policy=root -display-name="auto-unseal-token" -format=json
+  command: vault token create -policy=root -display-name="auto-unseal-token" -format=json
   environment:
-    VAULT_ADDR: "http://127.0.0.1:8200"
-  register: unseal_token_json
+    VAULT_ADDR: "{{ VAULT_ADDR }}"
+  register: token_json
 
-- name: Save unseal token to controller
+- name: Save unseal token
   delegate_to: localhost
   copy:
     dest: "./auto_unseal_token.txt"
-    content: "{{ (unseal_token_json.stdout | from_json).auth.client_token }}"
+    content: "{{ (token_json.stdout | from_json).auth.client_token }}"
     mode: '0600'

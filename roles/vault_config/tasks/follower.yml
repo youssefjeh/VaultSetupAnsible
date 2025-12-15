@@ -1,0 +1,34 @@
+---
+- name: Load unseal token from controller
+  delegate_to: localhost
+  slurp:
+    src: "./auto_unseal_token.txt"
+  register: unseal_token_raw
+
+- set_fact:
+    auto_unseal_token: "{{ unseal_token_raw.content | b64decode }}"
+
+- name: Apply vault.hcl template for follower
+  template:
+    src: vault.hcl.j2
+    dest: /etc/vault.d/vault.hcl
+    owner: "{{ vault_user }}"
+    group: "{{ vault_group }}"
+    mode: '0644'
+
+- name: Start Vault
+  systemd:
+    name: vault
+    state: started
+    enabled: yes
+
+- name: Join follower to raft cluster
+  command: >
+    vault operator raft join http://{{ hostvars['Vault_Master'].ansible_host }}:8200
+  environment:
+    VAULT_ADDR: "{{ VAULT_ADDR }}"
+  register: raft_join_output
+  failed_when: false
+
+- debug:
+    msg: "{{ raft_join_output.stdout }}"

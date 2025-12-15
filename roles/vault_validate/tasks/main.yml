@@ -1,0 +1,22 @@
+---
+- name: Test Write secret
+  command: vault kv put secret/test value=hello
+  environment:
+    VAULT_ADDR: "{{ VAULT_ADDR }}"
+  register: write_test
+  changed_when: false
+
+- name: Test Read secret
+  command: vault kv get -format=json secret/test
+  environment:
+    VAULT_ADDR: "{{ VAULT_ADDR }}"
+  register: read_test
+  changed_when: false
+
+- name: Validate secret consistency
+  fail:
+    msg: "Cluster validation FAILED! Cannot read test secret."
+  when: "'hello' not in read_test.stdout"
+
+- debug:
+    msg: "Vault cluster validation SUCCESSFUL!"

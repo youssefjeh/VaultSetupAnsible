@@ -1,37 +1,27 @@
 ---
-- name: Install Vault on all Vault servers
-  hosts: vault_nodes
+- hosts: vault_nodes
   become: yes
   roles:
     - vault_install
 
-- name: Configure Auto-Unseal provider
-  hosts: Auto_Unseal_Provider
+- hosts: Auto_Unseal_Provider
   become: yes
   roles:
-    - vault_config_auto_unseal
-
-- name: Initialize Vault (only Auto-Unseal provider)
-  hosts: Auto_Unseal_Provider
-  become: yes
-  roles:
+    - vault_config
     - vault_init
-
-- name: Configure Auto-Unseal (transit)
-  hosts: Auto_Unseal_Provider
-  become: yes
-  roles:
     - vault_auto_unseal_setup
 
-- name: Configure Vault Master with Transit Seal + Raft
-  hosts: Vault_Master
+- hosts: Vault_Master
   become: yes
   roles:
-    - vault_master_config
+    - vault_config
 
-- name: Configure Vault Followers 
-  hosts: vault_followers
+- hosts: vault_followers
   become: yes
   roles:
-    - vault_install  
-    - vault_follower_config
+    - vault_config
+
+- hosts: Vault_Master
+  become: yes
+  roles:
+    - vault_validate

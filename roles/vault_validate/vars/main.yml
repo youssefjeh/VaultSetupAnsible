@@ -1,0 +1,4 @@
+vault_user: vault
+vault_group: vault
+vault_data_dir: /opt/vault/data
+VAULT_ADDR: "http://127.0.0.1:8200"

@@ -8,8 +8,10 @@
     update_cache: yes
 
 - name: Add HashiCorp GPG key
-  ansible.builtin.shell: |
-    wget -O- https://apt.releases.hashicorp.com/gpg | gpg --dearmor | tee /usr/share/keyrings/hashicorp-archive-keyring.gpg > /dev/null
+  shell: |
+    wget -O- https://apt.releases.hashicorp.com/gpg \
+    | gpg --dearmor \
+    | tee /usr/share/keyrings/hashicorp-archive-keyring.gpg > /dev/null
   args:
     creates: /usr/share/keyrings/hashicorp-archive-keyring.gpg
 
@@ -19,19 +21,29 @@
     content: |
       deb [signed-by=/usr/share/keyrings/hashicorp-archive-keyring.gpg] https://apt.releases.hashicorp.com {{ ansible_distribution_release }} main
 
-- name: Update APT and install Vault
+- name: Install Vault 
   apt:
     name: vault
-    state: present
     update_cache: yes
+    state: present
 
-- name: Create Vault data dir
+- name: Create Vault data directory
   file:
-    path: /opt/vault/data
+    path: "{{ vault_data_dir }}"
     state: directory
-    owner: vault
-    group: vault
+    owner: "{{ vault_user }}"
+    group: "{{ vault_group }}"
     mode: '0750'
+
+# - name: Deploy Vault systemd service
+#   template:
+#     src: vault.service.j2
+#     dest: /etc/systemd/system/vault.service
+#     mode: '0644'
+
+# - name: Reload systemd
+#   systemd:
+#     daemon_reload: yes
 
 - name: Enable Vault service
   systemd:

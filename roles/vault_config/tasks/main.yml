@@ -1,0 +1,12 @@
+---
+- name: Include Auto-Unseal provider config
+  include_tasks: auto_unseal_provider.yml
+  when: vault_is_auto_unseal_provider
+
+- name: Include Master config
+  include_tasks: master.yml
+  when: vault_is_master
+
+- name: Include Follower config
+  include_tasks: follower.yml
+  when: vault_is_follower

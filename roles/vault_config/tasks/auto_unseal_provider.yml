@@ -1,0 +1,14 @@
+---
+- name: Generate vault.hcl for auto-unseal provider
+  template:
+    src: vault.hcl.j2
+    dest: /etc/vault.d/vault.hcl
+    owner: "{{ vault_user }}"
+    group: "{{ vault_group }}"
+    mode: '0644'
+
+- name: Start Vault
+  systemd:
+    name: vault
+    state: started
+    enabled: yes
