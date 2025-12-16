@@ -1,22 +1,25 @@
 ---
-- name: Enable transit engine
+- name: Enable transit secrets engine
   command: vault secrets enable transit
   failed_when: false
   environment:
     VAULT_ADDR: "{{ VAULT_ADDR }}"
+    VAULT_TOKEN: "{{ vault_root_token }}"
 
-- name: Create auto-unseal key
+- name: Create auto-unseal transit key
   command: vault write -f transit/keys/autounseal-key
   environment:
     VAULT_ADDR: "{{ VAULT_ADDR }}"
+    VAULT_TOKEN: "{{ vault_root_token }}"
 
 - name: Create auto-unseal token
   command: vault token create -policy=root -display-name="auto-unseal-token" -format=json
   environment:
     VAULT_ADDR: "{{ VAULT_ADDR }}"
+    VAULT_TOKEN: "{{ vault_root_token }}"
   register: token_json
 
-- name: Save unseal token
+- name: Save auto-unseal token
   delegate_to: localhost
   copy:
     dest: "./auto_unseal_token.txt"
