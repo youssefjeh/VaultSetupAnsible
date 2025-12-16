@@ -16,10 +16,10 @@
   roles:
     - vault_config
 
-- hosts: vault_followers
-  become: yes
-  roles:
-    - vault_config
+# - hosts: vault_followers
+#   become: yes
+#   roles:
+#     - vault_config
 
 - hosts: Vault_Master
   become: yes
