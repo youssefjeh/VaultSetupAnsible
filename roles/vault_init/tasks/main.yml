@@ -5,22 +5,28 @@
 #   args:
 #     executable: /bin/bash
 
-- name: Check if Vault is initialized
-  command: vault status -format=json
+- name: Check if Vault is already initialized
+  ansible.builtin.command: vault status -format=json
   register: vault_status
   failed_when: false
+  environment:
+    VAULT_ADDR: "{{ VAULT_ADDR }}"
   changed_when: false
-  environment:
-    VAULT_ADDR: "{{ VAULT_ADDR }}"
 
-- name: Initialize Vault if needed
-  command: vault operator init -format=json
+- name: Initialize Vault if not already initialized
+  ansible.builtin.command: vault operator init -format=json
   register: vault_init_output
-  when: (vault_status.stdout | from_json).initialized == false
   environment:
     VAULT_ADDR: "{{ VAULT_ADDR }}"
+  when: (vault_status.stdout | from_json).initialized == false
+  changed_when: true
 
-- name: Save init output
+- name: Debug vault_init_output
+  debug:
+    var: vault_init_output.stdout
+  when: vault_init_output is defined and vault_init_output.stdout is defined
+
+- name: Save init keys to controller
   delegate_to: localhost
   copy:
     dest: "./vault_init_results.json"
@@ -28,23 +34,70 @@
     mode: '0600'
   when: vault_init_output is defined and vault_init_output.stdout is defined
 
-- name: Load init output when already initialized
+- name: Load Vault init keys if vault_init_output is undefined
   set_fact:
     vault_init_output: "{{ lookup('file', './vault_init_results.json') | from_json }}"
-  when: vault_init_output is not defined
+  when: vault_init_output is not defined or vault_init_output.stdout is not defined
 
-- name: Normalize Vault init data (ALWAYS same format)
-  set_fact:
-    vault_init_data: >-
-      {{
-        (vault_init_output.stdout | from_json)
-        if vault_init_output.stdout is defined
-        else vault_init_output
-      }}
-
-- name: Unseal Vault
-  command: "vault operator unseal {{ item }}"
-  loop: "{{ vault_init_data.unseal_keys_b64 }}"
+- name: Unseal Vault if sealed
+  ansible.builtin.command: "vault operator unseal {{ item }}"
+  loop: >-
+    {{
+      vault_init_output.unseal_keys_b64
+      if vault_init_output.stdout is not defined
+      else (vault_init_output.stdout | from_json).unseal_keys_b64
+    }}
   environment:
     VAULT_ADDR: "{{ VAULT_ADDR }}"
-  when: (vault_status.stdout | from_json).sealed
+  when: (vault_status.stdout | from_json).sealed == true
+
+# ---
+# # - name: Set VAULT_ADDR
+# #   ansible.builtin.shell: |
+# #     export VAULT_ADDR="{{ VAULT_ADDR }}"
+# #   args:
+# #     executable: /bin/bash
+
+# - name: Check if Vault is initialized
+#   command: vault status -format=json
+#   register: vault_status
+#   failed_when: false
+#   changed_when: false
+#   environment:
+#     VAULT_ADDR: "{{ VAULT_ADDR }}"
+
+# - name: Initialize Vault if needed
+#   command: vault operator init -format=json
+#   register: vault_init_output
+#   when: (vault_status.stdout | from_json).initialized == false
+#   environment:
+#     VAULT_ADDR: "{{ VAULT_ADDR }}"
+
+# - name: Save init output
+#   delegate_to: localhost
+#   copy:
+#     dest: "./vault_init_results.json"
+#     content: "{{ vault_init_output.stdout }}"
+#     mode: '0600'
+#   when: vault_init_output is defined and vault_init_output.stdout is defined
+
+# - name: Load init output when already initialized
+#   set_fact:
+#     vault_init_output: "{{ lookup('file', './vault_init_results.json') | from_json }}"
+#   when: vault_init_output is not defined
+
+# - name: Normalize Vault init data (ALWAYS same format)
+#   set_fact:
+#     vault_init_data: >-
+#       {{
+#         (vault_init_output.stdout | from_json)
+#         if vault_init_output.stdout is defined
+#         else vault_init_output
+#       }}
+
+# - name: Unseal Vault
+#   command: "vault operator unseal {{ item }}"
+#   loop: "{{ vault_init_data.unseal_keys_b64 }}"
+#   environment:
+#     VAULT_ADDR: "{{ VAULT_ADDR }}"
+#   when: (vault_status.stdout | from_json).sealed
