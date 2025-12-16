@@ -1,9 +1,9 @@
 ---
-- name: Set VAULT_ADDR
-  ansible.builtin.shell: |
-    export VAULT_ADDR="{{ VAULT_ADDR }}"
-  args:
-    executable: /bin/bash
+# - name: Set VAULT_ADDR
+#   ansible.builtin.shell: |
+#     export VAULT_ADDR="{{ VAULT_ADDR }}"
+#   args:
+#     executable: /bin/bash
 
 - name: Check if Vault is initialized
   command: vault status -format=json
@@ -26,16 +26,25 @@
     dest: "./vault_init_results.json"
     content: "{{ vault_init_output.stdout }}"
     mode: '0600'
-  when: vault_init_output is defined
+  when: vault_init_output is defined and vault_init_output.stdout is defined
 
 - name: Load init output when already initialized
   set_fact:
     vault_init_output: "{{ lookup('file', './vault_init_results.json') | from_json }}"
   when: vault_init_output is not defined
 
+- name: Normalize Vault init data (ALWAYS same format)
+  set_fact:
+    vault_init_data: >-
+      {{
+        (vault_init_output.stdout | from_json)
+        if vault_init_output.stdout is defined
+        else vault_init_output
+      }}
+
 - name: Unseal Vault
   command: "vault operator unseal {{ item }}"
-  loop: "{{ vault_init_output.unseal_keys_b64 }}"
+  loop: "{{ vault_init_data.unseal_keys_b64 }}"
   environment:
     VAULT_ADDR: "{{ VAULT_ADDR }}"
   when: (vault_status.stdout | from_json).sealed
