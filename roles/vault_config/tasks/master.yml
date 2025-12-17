@@ -1,5 +1,7 @@
 ---
-- name: Load unseal token from controller
+# roles/vault_config/master.yml
+
+- name: Load auto-unseal token from controller
   delegate_to: localhost
   slurp:
     src: "./auto_unseal_token.txt"
@@ -16,38 +18,96 @@
     group: "{{ vault_group }}"
     mode: '0644'
 
-- name: Start Vault
+- name: Start Vault service
   systemd:
     name: vault
     state: started
     enabled: yes
 
-- name: Initialize Vault Master 
-  ansible.builtin.command: vault operator init -format=json
+- name: Check if Vault is already initialized
+  command: vault status -format=json
+  environment:
+    VAULT_ADDR: "{{ VAULT_ADDR }}"
+  register: vault_status
+  ignore_errors: yes
+
+- name: Initialize Vault Master if not already initialized
+  command: vault operator init -format=json
   environment:
     VAULT_ADDR: "{{ VAULT_ADDR }}"
   register: vault_master_init
   changed_when: true
+  when: vault_status.rc != 0 or (vault_status.stdout | from_json).initialized == false
 
-- name: Save master init output
+- name: Save master init output locally (only if initialized)
   delegate_to: localhost
   copy:
     dest: "./vault_master_init.json"
     content: "{{ vault_master_init.stdout }}"
     mode: '0600'
+  when: vault_master_init is defined
 
 - name: Unseal Vault Master
-  ansible.builtin.command: "vault operator unseal {{ item }}"
-  loop: "{{ (vault_master_init.stdout | from_json).unseal_keys_b64 }}"
+  command: "vault operator unseal {{ item }}"
+  loop: "{{ (vault_master_init.stdout | from_json).unseal_keys_b64 if vault_master_init is defined else [] }}"
   environment:
     VAULT_ADDR: "{{ VAULT_ADDR }}"
-
-# - name: Login using root token Master
-#   ansible.builtin.command: "vault login {{ (vault_master_init.stdout | from_json).root_token }}"
-#   environment:
-#     VAULT_ADDR: "{{ VAULT_ADDR }}"
+  when: vault_master_init is defined
 
 - name: Set Vault root token fact
   set_fact:
-    vault_root_token: "{{ (vault_master_init.stdout | from_json).root_token }}"
+    vault_root_token: "{{ (vault_master_init.stdout | from_json).root_token if vault_master_init is defined else lookup('file', './vault_master_init.json') | from_json | dict2items | selectattr('key','equalto','root_token') | map(attribute='value') | first }}"
+
+# ---
+# - name: Load unseal token from controller
+#   delegate_to: localhost
+#   slurp:
+#     src: "./auto_unseal_token.txt"
+#   register: unseal_token_raw
+
+# - set_fact:
+#     auto_unseal_token: "{{ unseal_token_raw.content | b64decode }}"
+
+# - name: Apply vault.hcl template for master
+#   template:
+#     src: vault.hcl.j2
+#     dest: /etc/vault.d/vault.hcl
+#     owner: "{{ vault_user }}"
+#     group: "{{ vault_group }}"
+#     mode: '0644'
+
+# - name: Start Vault
+#   systemd:
+#     name: vault
+#     state: started
+#     enabled: yes
+
+# - name: Initialize Vault Master 
+#   ansible.builtin.command: vault operator init -format=json
+#   environment:
+#     VAULT_ADDR: "{{ VAULT_ADDR }}"
+#   register: vault_master_init
+#   changed_when: true
+
+# - name: Save master init output
+#   delegate_to: localhost
+#   copy:
+#     dest: "./vault_master_init.json"
+#     content: "{{ vault_master_init.stdout }}"
+#     mode: '0600'
+
+# - name: Unseal Vault Master
+#   ansible.builtin.command: "vault operator unseal {{ item }}"
+#   loop: "{{ (vault_master_init.stdout | from_json).unseal_keys_b64 }}"
+#   environment:
+#     VAULT_ADDR: "{{ VAULT_ADDR }}"
+
+# # - name: Login using root token Master
+# #   ansible.builtin.command: "vault login {{ (vault_master_init.stdout | from_json).root_token }}"
+# #   environment:
+# #     VAULT_ADDR: "{{ VAULT_ADDR }}"
+
+# - name: Set Vault root token fact
+#   set_fact:
+#     vault_root_token: "{{ (vault_master_init.stdout | from_json).root_token }}"
 

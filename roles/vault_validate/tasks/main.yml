@@ -6,7 +6,7 @@
     VAULT_TOKEN: "{{ vault_root_token }}"
   register: write_test
   changed_when: false
-
+ 
 - name: Test Read secret
   command: vault kv get -format=json secret/test
   environment:
