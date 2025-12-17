@@ -15,13 +15,14 @@
   become: yes
   roles:
     - vault_config
+    - vault_validate
 
 # - hosts: vault_followers
 #   become: yes
 #   roles:
 #     - vault_config
 
-- hosts: Vault_Master
-  become: yes
-  roles:
-    - vault_validate
+# - hosts: Vault_Master
+#   become: yes
+#   roles:
+#     - vault_validate

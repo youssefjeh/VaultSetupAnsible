@@ -3,6 +3,7 @@
   command: vault kv put secret/test value=hello
   environment:
     VAULT_ADDR: "{{ VAULT_ADDR }}"
+    VAULT_TOKEN: "{{ vault_root_token }}"
   register: write_test
   changed_when: false
 
@@ -10,6 +11,7 @@
   command: vault kv get -format=json secret/test
   environment:
     VAULT_ADDR: "{{ VAULT_ADDR }}"
+    VAULT_TOKEN: "{{ vault_root_token }}"
   register: read_test
   changed_when: false
 
