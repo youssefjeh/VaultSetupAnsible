@@ -39,13 +39,15 @@
   changed_when: true
   when: vault_status.rc != 0 or (vault_status.stdout | from_json).initialized == false
 
-- name: Save master init output locally (only if initialized)
+- name: Save master init output if it doesn't exist
   delegate_to: localhost
   copy:
     dest: "./vault_master_init.json"
-    content: "{{ vault_master_init.stdout }}"
+    content: "{{ (vault_master_init.stdout if vault_master_init is defined else '') }}"
     mode: '0600'
-  when: vault_master_init is defined
+  when:
+    - vault_master_init is defined
+    - not lookup('file', './vault_master_init.json', errors='ignore')
 
 - name: Unseal Vault Master
   command: "vault operator unseal {{ item }}"
