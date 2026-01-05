@@ -1,0 +1,64 @@
+---
+- name: Configure Vault Load Balancer with Nginx
+  hosts: load_balancer
+  become: yes
+
+  vars:
+    vault_master_ip: "{{ hostvars['Vault_Master'].ansible_host }}"
+    vault_follower1_ip: "{{ hostvars['Vault_Follower_1'].ansible_host }}"
+    # Add more followers here if needed
+
+  tasks:
+    - name: Install Nginx
+      apt:
+        name: nginx
+        state: present
+        update_cache: yes
+
+    - name: Create Vault LB config
+      copy:
+        dest: /etc/nginx/sites-available/vault-lb.conf
+        mode: '0644'
+        content: |
+          upstream vault_backend {
+              least_conn;
+              server {{ vault_master_ip }}:8200;
+              server {{ vault_follower1_ip }}:8200;
+          }
+
+          server {
+              listen 8200;
+
+              access_log /var/log/nginx/vault_access.log;
+              error_log  /var/log/nginx/vault_error.log;
+
+              location / {
+                  proxy_pass http://vault_backend;
+                  proxy_set_header Host $proxy_host;
+                  proxy_set_header X-Forwarded-Proto $scheme;
+                  proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+                  proxy_connect_timeout 5s;
+                  proxy_read_timeout 10s;
+              }
+          }
+
+    - name: Enable vault-lb site
+      file:
+        src: /etc/nginx/sites-available/vault-lb.conf
+        dest: /etc/nginx/sites-enabled/vault-lb.conf
+        state: link
+        force: yes
+
+    - name: Test Nginx configuration
+      command: nginx -t
+      register: nginx_test
+
+    - name: Restart Nginx
+      systemd:
+        name: nginx
+        state: restarted
+        enabled: yes
+
+    - name: Show Nginx test result
+      debug:
+        msg: "{{ nginx_test.stdout if nginx_test.stdout is defined else 'Nginx test completed' }}"
