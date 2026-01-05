@@ -16,4 +16,17 @@ sudo apt install -y ansible
 # Step 5: Verify installation
 ansible --version
 
-echo "Ansible installation completed successfully!"
+# Step 6: Create SSH key file
+SSH_FILE="$HOME/.ssh/vault.pem"
+
+# Make sure ~/.ssh exists
+mkdir -p "$HOME/.ssh"
+
+# Create the file (empty for now)
+touch "$SSH_FILE"
+
+# Set proper permissions
+chmod 600 "$SSH_FILE"
+
+echo "SSH key file created at $SSH_FILE with chmod 600"
+echo "Ansible installation and SSH setup completed successfully!"
