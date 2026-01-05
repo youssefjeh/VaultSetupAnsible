@@ -1,68 +1,59 @@
 ---
-- name: Set VAULT_ADDR
-  ansible.builtin.shell: |
-    export VAULT_ADDR="http://127.0.0.1:8200"
-  args:
-    executable: /bin/bash
+- name: Set VAULT_ADDR environment variable
+  set_fact:
+    vault_env:
+      VAULT_ADDR: "http://127.0.0.1:8200"
 
 - name: Check if Vault is already initialized
   ansible.builtin.command: vault status -format=json
   register: vault_status
   failed_when: false
-  environment:
-    VAULT_ADDR: "http://127.0.0.1:8200"
   changed_when: false
+  environment: "{{ vault_env }}"
 
 - name: Initialize Vault if not already initialized
   ansible.builtin.command: vault operator init -format=json
-  register: vault_init_output
-  environment:
-    VAULT_ADDR: "http://127.0.0.1:8200"
+  register: vault_init_output_raw
+  environment: "{{ vault_env }}"
   when: (vault_status.stdout | from_json).initialized == false
   changed_when: true
 
-- name: Debug vault_init_output
+- name: Debug vault_init_output_raw
   debug:
-    var: vault_init_output.stdout
-  when: vault_init_output is defined and vault_init_output.stdout is defined
+    var: vault_init_output_raw.stdout
+  when: vault_init_output_raw is defined and vault_init_output_raw.stdout is defined
 
 - name: Save init keys to controller
   delegate_to: localhost
   copy:
     dest: "./vault_init_results.json"
-    content: "{{ vault_init_output.stdout }}"
+    content: "{{ vault_init_output_raw.stdout }}"
     mode: '0600'
-  when: vault_init_output is defined and vault_init_output.stdout is defined
+  when: vault_init_output_raw is defined and vault_init_output_raw.stdout is defined
 
-- name: Load Vault init keys if vault_init_output is undefined
+- name: Load Vault init keys if vault_init_output_raw is undefined
+  delegate_to: localhost
+  ansible.builtin.slurp:
+    src: "./vault_init_results.json"
+  register: vault_file_content
+  when: vault_init_output_raw is not defined or vault_init_output_raw.stdout is not defined
+
+- name: Set vault_init_output fact
   set_fact:
-    vault_init_output: "{{ lookup('file', './vault_init_results.json') | from_json }}"
-  when: vault_init_output is not defined or vault_init_output.stdout is not defined
+    vault_init_output: "{{ vault_init_output_raw.stdout | from_json if (vault_init_output_raw is defined and vault_init_output_raw.stdout is defined) else vault_file_content.content | b64decode | from_json }}"
 
 - name: Unseal Vault if sealed
   ansible.builtin.command: "vault operator unseal {{ item }}"
-  loop: >-
-    {{
-      vault_init_output.unseal_keys_b64
-      if vault_init_output.stdout is not defined
-      else (vault_init_output.stdout | from_json).unseal_keys_b64
-    }}
-  environment:
-    VAULT_ADDR: "http://127.0.0.1:8200"
+  loop: "{{ vault_init_output.unseal_keys_b64 }}"
+  environment: "{{ vault_env }}"
   when: (vault_status.stdout | from_json).sealed == true
 
 - name: Get root token
   set_fact:
-    vault_root_token: >-
-      {{
-        (vault_init_output.stdout | from_json).root_token
-        if vault_init_output.stdout is defined
-        else vault_init_output.root_token
-      }}
+    vault_root_token: "{{ vault_init_output.root_token }}"
 
 - name: Login to Vault using root token
-  ansible.builtin.shell: |
-    export VAULT_ADDR="http://127.0.0.1:8200"
-    vault login {{ vault_root_token }}
+  ansible.builtin.shell: vault login {{ vault_root_token }}
   args:
     executable: /bin/bash
+  environment: "{{ vault_env }}"

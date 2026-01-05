@@ -35,3 +35,9 @@
   roles:
     - vault_install  
     - vault_follower_config
+
+- name: Configure Vault Load Balancer
+  hosts: load_balancer
+  become: yes
+  roles:
+    - vault_load_balancer

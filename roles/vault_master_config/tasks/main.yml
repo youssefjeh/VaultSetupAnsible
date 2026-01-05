@@ -44,27 +44,50 @@
     enabled: yes
     state: started
 
-- name: Initialize Vault
-  ansible.builtin.command: vault operator init -format=json
+- name: Check if Vault is already initialized
+  ansible.builtin.command: vault status -format=json
+  register: vault_status
+  failed_when: false
+  changed_when: false
   environment:
     VAULT_ADDR: "http://127.0.0.1:8200"
-  register: vault_master_init
-  changed_when: true
 
-- name: Save master init output
+- name: Initialize Vault if not already initialized
+  ansible.builtin.command: vault operator init -format=json
+  register: vault_master_init_raw
+  environment:
+    VAULT_ADDR: "http://127.0.0.1:8200"
+  changed_when: true
+  failed_when: false
+  when: (vault_status.stdout | from_json).initialized == false
+
+- name: Load Vault master init from file if not just initialized
+  delegate_to: localhost
+  slurp:
+    src: "./vault_master_init.json"
+  register: vault_master_file
+  when: vault_master_init_raw is not defined or vault_master_init_raw.stdout is not defined
+
+- name: Set vault_master_init fact
+  set_fact:
+    vault_master_init: "{{ vault_master_init_raw.stdout | from_json if (vault_master_init_raw is defined and vault_master_init_raw.stdout is defined) else vault_master_file.content | b64decode | from_json }}"
+
+- name: Save master init output if just initialized
   delegate_to: localhost
   copy:
     dest: "./vault_master_init.json"
-    content: "{{ vault_master_init.stdout }}"
+    content: "{{ vault_master_init_raw.stdout }}"
     mode: '0600'
+  when: vault_master_init_raw is defined and vault_master_init_raw.stdout is defined
 
-- name: Unseal Vault
+- name: Unseal Vault if sealed
   ansible.builtin.command: "vault operator unseal {{ item }}"
-  loop: "{{ (vault_master_init.stdout | from_json).unseal_keys_b64 }}"
+  loop: "{{ vault_master_init.unseal_keys_b64 }}"
   environment:
     VAULT_ADDR: "http://127.0.0.1:8200"
+  when: (vault_status.stdout | from_json).sealed == true
 
 - name: Login using root token
-  ansible.builtin.command: "vault login {{ (vault_master_init.stdout | from_json).root_token }}"
+  ansible.builtin.command: "vault login {{ vault_master_init.root_token }}"
   environment:
     VAULT_ADDR: "http://127.0.0.1:8200"
