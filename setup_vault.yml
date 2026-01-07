@@ -5,39 +5,82 @@
   roles:
     - vault_install
 
-- name: Configure Auto-Unseal provider
+- name: Configure Transit Auto-Unseal cluster (PRIMARY + BACKUP)
   hosts: Auto_Unseal_Provider
   become: yes
   roles:
-    - vault_config_auto_unseal
+    - vault_transit_config
+    
+- name: Initialize Transit Vault on PRIMARY only
+  hosts: PRIMARY_Auto_Unseal_Provider
+  become: yes
+  roles:
+    - vault_transit_init
 
-- name: Initialize Vault (only Auto-Unseal provider)
+- name: Join BACKUP to Raft cluster
+  hosts: BACKUP_Auto_Unseal_Provider
+  become: yes
+  roles:
+    - vault_transit_join
+
+- name: Configure Keepalived for Transit HA
   hosts: Auto_Unseal_Provider
   become: yes
   roles:
-    - vault_init
+    - vault_keepalived
 
-- name: Configure Auto-Unseal (transit)
-  hosts: Auto_Unseal_Provider
-  become: yes
-  roles:
-    - vault_auto_unseal_setup
 
-- name: Configure Vault Master with Transit Seal + Raft
-  hosts: Vault_Master
-  become: yes
-  roles:
-    - vault_master_config
 
-- name: Configure Vault Followers 
-  hosts: vault_followers
-  become: yes
-  roles:
-    - vault_install  
-    - vault_follower_config
 
-- name: Configure Vault Load Balancer
-  hosts: load_balancer
-  become: yes
-  roles:
-    - vault_load_balancer
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+# - name: Configure Auto-Unseal provider
+#   hosts: Auto_Unseal_Provider
+#   become: yes
+#   roles:
+#     - vault_config_auto_unseal
+
+# - name: Initialize Vault (only Auto-Unseal provider)
+#   hosts: Auto_Unseal_Provider
+#   become: yes
+#   roles:
+#     - vault_init
+
+# - name: Configure Auto-Unseal (transit)
+#   hosts: Auto_Unseal_Provider
+#   become: yes
+#   roles:
+#     - vault_auto_unseal_setup
+
+# - name: Configure Vault Master with Transit Seal + Raft
+#   hosts: Vault_Master
+#   become: yes
+#   roles:
+#     - vault_master_config
+
+# - name: Configure Vault Followers 
+#   hosts: vault_followers
+#   become: yes
+#   roles:
+#     - vault_install  
+#     - vault_follower_config
+
+# - name: Configure Vault Load Balancer
+#   hosts: load_balancer
+#   become: yes
+#   roles:
+#     - vault_load_balancer

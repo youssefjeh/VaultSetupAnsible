@@ -1,0 +1,12 @@
+---
+- name: Join BACKUP Transit Vault to PRIMARY Raft
+  command: vault operator raft join http://{{ hostvars['PRIMARY_Auto_Unseal_Provider'].ansible_host }}:8201
+  environment:
+    VAULT_ADDR: "http://127.0.0.1:8200"
+  failed_when: false
+  changed_when: true
+
+- name: Restart Vault after join
+  systemd:
+    name: vault
+    state: restarted

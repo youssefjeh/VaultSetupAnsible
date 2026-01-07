@@ -1,0 +1,58 @@
+---
+- name: Initialize Vault Transit if needed
+  command: vault operator init -format=json
+  register: init_out
+  failed_when: false
+  changed_when: "'root_token' in init_out.stdout"
+  environment:
+    VAULT_ADDR: "http://127.0.0.1:8200"
+
+- name: Save init result to controller
+  delegate_to: localhost
+  copy:
+    dest: "./vault_transit_init.json"
+    content: "{{ init_out.stdout }}"
+    mode: "0600"
+  when: "'root_token' in init_out.stdout"
+
+- name: Load keys from controller
+  delegate_to: localhost
+  slurp:
+    src: "./vault_transit_init.json"
+  register: init_file
+
+- name: Set init data fact
+  set_fact:
+    transit_init: "{{ init_file.content | b64decode | from_json }}"
+
+- name: Unseal PRIMARY Transit Vault
+  command: vault operator unseal {{ transit_init.unseal_keys_b64[0] }}
+  environment:
+    VAULT_ADDR: "http://127.0.0.1:8200"
+
+- name: Enable Transit engine
+  command: vault secrets enable transit
+  environment:
+    VAULT_ADDR: "http://127.0.0.1:8200"
+    VAULT_TOKEN: "{{ transit_init.root_token }}"
+  failed_when: false
+
+- name: Create unseal key
+  command: vault write -f transit/keys/vault-unseal-key
+  environment:
+    VAULT_ADDR: "http://127.0.0.1:8200"
+    VAULT_TOKEN: "{{ transit_init.root_token }}"
+
+- name: Create auto-unseal token
+  command: vault token create -policy=root -display-name="auto-unseal" -format=json
+  register: token_out
+  environment:
+    VAULT_ADDR: "http://127.0.0.1:8200"
+    VAULT_TOKEN: "{{ transit_init.root_token }}"
+
+- name: Save auto-unseal token to controller
+  delegate_to: localhost
+  copy:
+    dest: "./transit_unseal_token.txt"
+    content: "{{ (token_out.stdout | from_json).auth.client_token }}"
+    mode: "0600"

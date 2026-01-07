@@ -1,0 +1,30 @@
+---
+- name: Install Keepalived
+  apt:
+    name: keepalived
+    state: present
+    update_cache: yes
+
+- name: Configure Keepalived (VRRP VIP)
+  copy:
+    dest: /etc/keepalived/keepalived.conf
+    mode: "0644"
+    content: |
+      vrrp_instance VAULT_TRANSIT_HA {
+        interface eth0
+        virtual_router_id 77
+        advert_int 1
+        priority {{ 200 if inventory_hostname == "PRIMARY_Auto_Unseal_Provider" else 100 }}
+        authentication {
+          auth_type PASS
+          auth_pass VAULT_HA_2026
+        }
+        virtual_ipaddress {
+          {{ IPADD_AS_VIP }}
+        }
+      }
+- name: Restart Keepalived
+  systemd:
+    name: keepalived
+    state: restarted
+    enabled: yes
